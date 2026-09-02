@@ -1,5 +1,7 @@
 import flet as ft
 
+from ui.config import settings
+
 """
 IN the settings  view, I want the user to be able to set the location of the Books to be in ...
 """
@@ -19,6 +21,7 @@ class SetingsView(ft.Column):
         # Components
         #
         self.books_location = ft.TextField(
+            value=str(settings.books_folder),
             hint_text="~/home/noah/Books/",
         )
         self.books_view = ft.Row(

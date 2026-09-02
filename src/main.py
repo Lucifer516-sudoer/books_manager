@@ -55,13 +55,13 @@ async def main(page: ft.Page):
 
     page.on_route_change = _on_route_change
 
-    def _on_nav_change(e: ft.ControlEvent):
+    async def _on_nav_change(e: ft.ControlEvent):
         index = navigation_bar.selected_index
-        page.go(route_order[index])
+        await page.push_route(route_order[index])
 
     navigation_bar.on_change = _on_nav_change  # type: ignore
 
-    page.go("/home")
+    await page.push_route("/home")
 
 
 if __name__ == "__main__":
