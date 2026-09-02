@@ -1,26 +1,68 @@
 import flet as ft
 
+from ui.views import settings_view
 
-def main(page: ft.Page):
-    counter = ft.Text("0", size=50, data=0)
+navigation_bar = ft.NavigationBar(
+    destinations=[
+        ft.NavigationBarDestination(
+            icon=ft.Icons.HOME,
+            label="Home",
+        ),
+        ft.NavigationBarDestination(
+            icon=ft.Icons.SETTINGS,
+            label="Settings",
+        ),
+    ]
+)
 
-    def increment_click(e: ft.Event[ft.FloatingActionButton]):
-        counter.data += 1
-        counter.value = str(counter.data)
+pages = {
+    "/home": ft.View(
+        controls=[
+            ft.SafeArea(content=ft.Text("Home")),
+        ],
+        navigation_bar=navigation_bar,
+    ),
+    "/settings": ft.View(
+        controls=[
+            settings_view.SetingsView(),
+        ],
+        navigation_bar=navigation_bar,
+    ),
+}
 
-    page.floating_action_button = ft.FloatingActionButton(
-        icon=ft.Icons.ADD, key="increment", on_click=increment_click
-    )
-    page.add(
-        ft.SafeArea(
-            expand=True,
-            content=ft.Container(
-                content=counter,
-                alignment=ft.Alignment.CENTER,
-            ),
-        )
-    )
+route_order = list(pages.keys())  # so we can map route -> nav bar index
+
+
+async def get_to(route: str, view: ft.View, *, page: ft.Page) -> str:
+    page.views.clear()
+    page.views.append(view)
+
+    if page.navigation_bar is not None:
+        page.navigation_bar.selected_index = route_order.index(route)
+
+    return page.route
+
+
+async def main(page: ft.Page):
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    page.navigation_bar = navigation_bar
+
+    async def _on_route_change(e: ft.RouteChangeEvent):
+        route = page.route
+        if route in pages:
+            await get_to(route, pages[route], page=page)
+            page.update()
+
+    page.on_route_change = _on_route_change
+
+    def _on_nav_change(e: ft.ControlEvent):
+        index = navigation_bar.selected_index
+        page.go(route_order[index])
+
+    navigation_bar.on_change = _on_nav_change  # type: ignore
+
+    page.go("/home")
 
 
 if __name__ == "__main__":
-    ft.run(main)
+    ft.run(main)  # type: ignore
