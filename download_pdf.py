@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Generator
 
 # import httpx
@@ -67,9 +68,23 @@ class Downloader:
             downloaded_size=0,
             total_size=self._get_content_size(response),
         )
+
+        seek_point = (
+            0
+            if not Path(self.file_name + ".part").exists()
+            else Path(self.file_name + ".part").stat().st_size
+        )
+
+        # TODO: I will tackle this in the evening, though today is sunday I have college
         with open(f"{self.file_name}.part", "wb+") as file:
             for content in response.iter_bytes(chunk_size=self._chunk_size):
+                if file.seekable():
+                    file.seek(seek_point)
+
+                seek_point += self._chunk_size
+
                 file.write(content)
+
                 progress.downloaded_size = file.tell()
                 yield progress
 
