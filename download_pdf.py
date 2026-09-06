@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any, Generator
 
 # import httpx
 from httpx import Response
@@ -7,12 +8,26 @@ from slugify import slugify
 
 @dataclass
 class Progress:
+    """Progress of the download"""
+
     response_code: int
+    """The status code of the request
+    """
     downloaded_size: int = field(default=0)
+    """The stream size downloaded in `bytes`
+    """
+
     total_size: int = field(default=0)
+    """The actual stream size `bytes`
+    """
 
     @property
     def progress_percentage(self) -> float:
+        """The percentage of stream downloaded, as percentage
+
+        Returns:
+            float: Progress percentage (Rounded to 5 decimals)
+        """
         return round(self.downloaded_size / self.total_size * 100, 5)
 
 
@@ -20,6 +35,7 @@ class Downloader:
     def __init__(self, url: str, file_name: str) -> None:
         self._url = url
         self._file_name = slugify(file_name)
+        self._chunk_size = 1024 * 12  # 12 KB
 
     @property
     def url(self) -> str:
@@ -30,12 +46,44 @@ class Downloader:
         return self._file_name
 
     def _accept_ranges(self, response: Response) -> bool:
+        """Checks whether the response stream supports, accepting in ranges
+
+        Args:
+            response (Response): `Response` object from the `httpx`
+
+        Returns:
+            bool: True if `Accept-Ranges`, otherwise False
+        """
         if response.headers.get("Accept-Ranges") == "bytes":
             return True
-
         return False
 
-    async def _write_to_file(self): ...
+    def _get_content_size(self, response: Response) -> int:
+        return int(response.headers.get("Content-Length", 0))
+
+    def _download_in_parts(self, response: Response) -> Generator[Progress, Any, None]:
+        progress = Progress(
+            response_code=response.status_code,
+            downloaded_size=0,
+            total_size=self._get_content_size(response),
+        )
+        with open(f"{self.file_name}.part", "wb+") as file:
+            for content in response.iter_bytes(chunk_size=self._chunk_size):
+                file.write(content)
+                progress.downloaded_size = file.tell()
+                yield progress
+
+    async def _async_download_in_parts(self, response: Response):
+        progress = Progress(
+            response_code=response.status_code,
+            downloaded_size=0,
+            total_size=self._get_content_size(response),
+        )
+        with open(f"{self.file_name}.part", "wb+") as file:
+            async for content in response.aiter_bytes(chunk_size=self._chunk_size):
+                file.write(content)
+                progress.downloaded_size = file.tell()
+                yield progress
 
 
 # async def _write_to_part_file(file_name: str, stream):
