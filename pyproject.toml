@@ -1,37 +1,14 @@
 [project]
 name = "books-manager"
 version = "0.1.0"
-description = ""
+description = "A SIMPLE BOOKS MANAGER"
 readme = "README.md"
-requires-python = ">=3.10"
-authors = [
-    { name = "Flet developer", email = "you@example.com" }
-]
+requires-python = ">=3.13"
 dependencies = [
-    "flet>=0.86.5",
-    "flet-color-pickers>=0.86.5",
+    "httpx>=0.28.1",
+    "platformdirs>=4.11.7",
+    "pydantic-settings>=2.15.0",
+    "pymupdf>=1.28.2",
+    "slugify>=0.0.1",
+    "typer>=0.27.2",
 ]
-
-[dependency-groups]
-dev = [
-    "flet-cli>=0.86.5",
-    "flet-desktop>=0.86.5",
-    "flet-web>=0.86.5",
-    # Integration testing with `flet test` / pytest. The `test` extra brings in
-    # pytest, pytest-asyncio and the screenshot-comparison dependencies.
-    "flet[test]>=0.86.5",
-]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-
-[tool.flet]
-desktop_flavor = "light"    # Change to "full" to use flet-audio and flet-video
-org = "com.mycompany"
-product = "books-manager"
-company = "Flet"
-copyright = "Copyright (C) 2023-2026 by Flet"
-
-[tool.flet.app]
-path = "src"
