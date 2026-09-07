@@ -15,7 +15,14 @@ class AppSettings(BaseSettings):
     @computed_field
     @property
     def APP_DIR(self) -> Path:
-        return user_data_path(self.APP_NAME, version=self.VERSION, ensure_exists=True)
+        return user_data_path(
+            self.APP_NAME, version=self.VERSION, ensure_exists=True
+        )
+
+    @computed_field
+    @property
+    def BOOKS_DIR(self) -> Path:
+        return self.APP_DIR / "BOOKs"
 
     @computed_field
     @property
@@ -39,7 +46,7 @@ class AppSettings(BaseSettings):
 
     def write_to_json(self):
         try:
-            with open(self.CONFIG_FILE, "w+") as file:
+            with Path.open(self.CONFIG_FILE, "w+") as file:
                 json.dump(
                     self.model_dump,
                     file,
@@ -64,7 +71,9 @@ class AppSettings(BaseSettings):
             if not each.exists():
                 each.touch()
 
-    model_config = SettingsConfigDict(env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8", extra="ignore"
+    )
 
     @classmethod
     def load_settings(cls) -> "AppSettings":
@@ -75,7 +84,7 @@ class AppSettings(BaseSettings):
 
         if config_path.exists() and config_path.stat().st_size > 0:
             try:
-                with open(config_path, "r") as file:
+                with Path.open(config_path) as file:
                     file_data = json.load(file)
                     return cls(**file_data)
             except json.JSONDecodeError:

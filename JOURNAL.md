@@ -16,3 +16,8 @@
 # 6th September, 2026 - 7:05:11 AM
 - Wrote some shitty piece of code, but mehhh, i wrote it bro...
 - I am happy I am understanding stuffs.
+
+# 7th September, 2026 - 6:47:49 AM
+- Well, kinda slept better yesterday.
+- I dont know what is waiting for me today, but I need to tackle whatever it is with my might.
+- And cleaned the downloader; good way of learning, but maybe it would be great if i was able to get some time to spend on this.
