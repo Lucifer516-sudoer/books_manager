@@ -1,0 +1,4 @@
+Downloader:
+- Download in parts
+    - Sync
+    - Async
