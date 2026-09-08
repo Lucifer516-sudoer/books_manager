@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 import aiofiles
 import httpx
-from httpx import HTTPError, Response
+from httpx import Response
 from slugify import slugify
 
 from config import settings
@@ -94,16 +94,6 @@ class Downloader:
     def file_name(self) -> Path:
         return self._file_name
 
-    def _retrieve_response(self) -> Response | None:
-        with httpx.Client(
-            follow_redirects=True,
-            headers=self.default_header,
-        ) as client:
-            try:
-                return client.get(self.url)
-            except (httpx.RemoteProtocolError, httpx.HTTPError):
-                return None
-
     def _supports_ranges(self, response: Response | None = None) -> bool:
         if response is None:
             response = self.client.get(
@@ -134,95 +124,7 @@ class Downloader:
             else ".pdf"
         )
 
-    def _content_length(self, response: Response) -> int:
-        """Used to retrieve the size of the file when downloading in whole"""
-        return (
-            int(response.headers.get("Content-Length"))
-            if response.headers.get("Content-Length") is not None
-            else 0
-        )
-
-    async def _async_download_whole(
-        self, response: Response, *, replace: bool = False
-    ) -> AsyncGenerator[Progress, None]:
-        # Check the response codes for safety
-        try:
-            response.raise_for_status()
-        except HTTPError as err:
-            raise DownloadError(
-                f"Couldnt initialize the connection: {response}"
-            ) from err
-
-        # check if the file is there actually or not,
-        # if self.
-        async def download_the_bloody_file(
-            response: Response,
-        ):
-            # A small Tribute to Captain Jacksparrow
-            progress = Progress(
-                response_code=response.status_code,
-                status=DownloadProgressStatus.ON_GOING,
-                downloaded_size=0,
-                total_size=self._content_length(response=response),
-            )
-            async with aiofiles.open(self.file_name, "wb+") as file:
-                async for content in response.aiter_bytes(self._chunk_size):
-                    await file.write(content)
-                    progress.downloaded_size += len(content)
-                    yield progress
-
-        if self.file_name.exists() and not replace:
-            file_size = self.file_name.stat().st_size
-            yield Progress(
-                response_code=response.status_code,
-                status=DownloadProgressStatus.ALREADY_DONE,
-                downloaded_size=file_size,
-                total_size=file_size,
-            )
-        else:
-            async for progress in download_the_bloody_file(response):
-                yield progress
-
-    def _download_whole(
-        self, response: Response, *, replace: bool = False
-    ) -> Generator[Progress, Any, None]:
-        # Check the response codes for safety
-        try:
-            response.raise_for_status()
-        except HTTPError as err:
-            raise DownloadError(
-                f"Couldnt initialize the connection: {response}"
-            ) from err
-
-        # check if the file is there actually or not,
-        # if self.
-        def download_the_bloody_file(
-            response: Response,
-        ) -> Generator[Progress, None, None]:
-            # A small Tribute to Captain Jacksparrow
-            progress = Progress(
-                response_code=response.status_code,
-                status=DownloadProgressStatus.ON_GOING,
-                downloaded_size=0,
-                total_size=self._content_length(response=response),
-            )
-            with Path.open(self.file_name, "wb+") as file:
-                for content in response.iter_bytes(self._chunk_size):
-                    file.write(content)
-                    progress.downloaded_size = file.tell()
-                    yield progress
-
-        if self.file_name.exists() and not replace:
-            yield Progress(
-                response_code=response.status_code,
-                status=DownloadProgressStatus.ALREADY_DONE,
-                downloaded_size=self.file_name.stat().st_size,
-                total_size=self.file_name.stat().st_size,
-            )
-        else:
-            yield from download_the_bloody_file(response)
-
-    def _download_in_parts(self):
+    def sync_download(self) -> Generator[Progress, None]:
         part_file = Path(str(self.file_name) + ".part")
         seek_point = part_file.stat().st_size if part_file.exists() else 0
 
@@ -261,9 +163,46 @@ class Downloader:
                         part_file.rename(self.file_name)
                     yield progress
 
-    def download(self) -> Generator[Progress, None, None]:
-        with self.client.stream("GET", self.url) as response:
-            yield from self._download_whole(response)
+    async def async_download(self) -> AsyncGenerator[Progress, None]:
+        part_file = Path(str(self.file_name) + ".part")
+        seek_point = part_file.stat().st_size if part_file.exists() else 0
+
+        async with self.async_client.stream(
+            "GET", self.url, headers={"Range": f"bytes={seek_point}-"}
+        ) as response:
+            if response.status_code != int(httpx.codes.PARTIAL_CONTENT):
+                raise DownloadError(
+                    "Server did not have the courtesy to honor the range "
+                    f"request: {response.status_code}"
+                )
+            total_size = int(
+                response.headers["Content-Range"].rsplit("/", 1)[1]
+            )
+            if total_size == seek_point and part_file.rename(self.file_name):
+                yield Progress(
+                    response_code=response.status_code,
+                    status=DownloadProgressStatus.ALREADY_DONE,
+                    downloaded_size=total_size,
+                    total_size=total_size,
+                )
+            async with aiofiles.open(part_file, "ab") as file:
+                progress = Progress(
+                    response_code=response.status_code,
+                    status=DownloadProgressStatus.ON_GOING,
+                    downloaded_size=seek_point,
+                    total_size=total_size,
+                )
+
+                for content in response.iter_bytes(self._chunk_size):
+                    progress.downloaded_size += len(content)
+                    await file.write(content)
+
+                    yield progress
+
+                if progress.downloaded_size == progress.total_size:
+                    progress.status = DownloadProgressStatus.DONE
+                    part_file.rename(self.file_name)
+                    yield progress
 
     #
     # Context Manager stuffs
